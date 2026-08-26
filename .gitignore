@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Local env files (examples are committed on purpose)
+.env
+backend/.env
+frontend/.env
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/

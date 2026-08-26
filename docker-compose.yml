@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: scheduler
+      POSTGRES_PASSWORD: scheduler
+      POSTGRES_DB: scheduler
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scheduler"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://scheduler:scheduler@postgres:5432/scheduler
+      DATABASE_URL_SYNC: postgresql+psycopg2://scheduler:scheduler@postgres:5432/scheduler
+      JWT_SECRET: dev-secret-change-me
+    ports:
+      - "8000:8000"
+
+  # Example worker fleet member. In practice you'd start these after
+  # creating a project + API key through the UI, then either hardcode the
+  # key here for local dev or launch workers out-of-band with `docker run`.
+  # Commented out by default since it needs a real PROJECT_ID/API_KEY.
+  #
+  # worker:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile.worker
+  #   depends_on:
+  #     - api
+  #   command: ["--base-url", "http://api:8000", "--api-key", "${WORKER_API_KEY}", "--project-id", "${WORKER_PROJECT_ID}", "--queues", "default", "--concurrency", "4"]
+  #   deploy:
+  #     replicas: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:4173"
+
+volumes:
+  pgdata:
