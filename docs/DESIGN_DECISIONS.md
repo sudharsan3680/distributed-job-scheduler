@@ -84,6 +84,25 @@ fixed rather than left as known gaps:
    combination) → set `allow_credentials=False` since the dashboard uses a
    bearer header, never cookies.
 
+## Second review pass — additional defects closed
+
+- **Manual DLQ/job replay was a no-op.** `retry_job` didn't reset
+  `attempt_count`, so a dead-lettered job (already at `max_attempts`) would be
+  re-dead-lettered on its first failure. Replay now resets `attempt_count = 0`
+  and `next_retry_at = None` for a genuine fresh attempt budget.
+- **Reaper orphaned execution rows.** A job reaped after a dead worker kept its
+  `JobExecution` stuck in `RUNNING`. The reaper now closes the open attempt as
+  `TIMED_OUT` with a duration and reason, so execution history is accurate.
+- **Inconsistent 429 body.** The rate limiter returned `{"detail": ...}` while
+  every other error is `{"error": {...}}`; now统一 to the structured form.
+- **Idempotency error masked other failures.** `create_job` caught all
+  exceptions as a 409 conflict; now catches `IntegrityError` specifically and
+  re-raises real DB errors.
+- **Scheduler loop was untested.** `tests/test_scheduler.py` now exercises
+  `promote_scheduled_jobs` and `reap_stale_leases` (requeue + TIMED_OUT, and
+  dead-letter when retries are exhausted) by pointing the scheduler's session
+  at the test DB.
+
 ## Things genuinely not verified
 
 Be clear-eyed about what "tests pass" does and doesn't prove here:

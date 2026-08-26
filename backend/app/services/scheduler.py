@@ -29,10 +29,16 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import AsyncSessionLocal
-from app.models import DeadLetterEntry, Job, JobStatus, RetryPolicy, ScheduledJob
+from app.models import DeadLetterEntry, ExecutionStatus, Job, JobExecution, JobStatus, RetryPolicy, ScheduledJob
 from app.services.retry import compute_backoff_seconds
 
 logger = logging.getLogger("scheduler")
+
+
+def _as_aware_utc(dt: datetime) -> datetime:
+    """SQLite drops tzinfo on timestamp round-trip; normalize so duration math
+    is identical across backends."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 async def promote_scheduled_jobs():
@@ -87,6 +93,21 @@ async def reap_stale_leases():
             )
         ).scalars().all()
         for job in stale:
+            # Close out the dangling attempt row so the execution history is
+            # accurate instead of being stuck in RUNNING forever.
+            open_exec = (
+                await db.execute(
+                    select(JobExecution).where(
+                        JobExecution.job_id == job.id, JobExecution.status == ExecutionStatus.RUNNING
+                    ).order_by(JobExecution.attempt_number.desc())
+                )
+            ).scalar_one_or_none()
+            if open_exec:
+                open_exec.status = ExecutionStatus.TIMED_OUT
+                open_exec.finished_at = now
+                open_exec.duration_ms = int((now - _as_aware_utc(open_exec.started_at)).total_seconds() * 1000)
+                open_exec.error_message = "Lease expired: worker stopped heartbeating before reporting a result."
+
             if job.attempt_count >= job.max_attempts:
                 job.status = JobStatus.DEAD_LETTER
                 job.completed_at = now

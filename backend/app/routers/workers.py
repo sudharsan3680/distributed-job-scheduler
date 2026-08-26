@@ -312,6 +312,7 @@ async def report_result(
         job.completed_at = now
         job.claimed_by_worker_id = None
         job.lease_expires_at = None
+        job.next_retry_at = None
         db.add(JobLog(job_id=job.id, level=LogLevel.INFO, message=f"Attempt {job.attempt_count} succeeded"))
         event = "job.completed"
     else:

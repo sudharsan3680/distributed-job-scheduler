@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from croniter import croniter
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_project_for_user, require_project_role
@@ -83,9 +84,12 @@ async def create_job(
     job.created_by = current_user.id
     try:
         await db.commit()
-    except Exception:
+    except IntegrityError:
         await db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "idempotency_key already used in this queue")
+    except Exception:
+        await db.rollback()
+        raise
     await db.refresh(job)
     await manager.broadcast(project.id, {"event": "job.created", "job_id": job.id, "queue_id": queue.id, "status": job.status.value})
     return job
@@ -178,8 +182,14 @@ async def retry_job(job_id: int, project: Project = Depends(require_project_role
     if job.status not in (JobStatus.FAILED, JobStatus.DEAD_LETTER):
         raise HTTPException(status.HTTP_409_CONFLICT, "Only FAILED or DEAD_LETTER jobs can be retried")
 
+    # Operator-triggered replay: give the job a *fresh* attempt budget.
+    # Without resetting attempt_count, a DEAD_LETTER job (which already reached
+    # max_attempts) would be re-dead-lettered on its first failure and replay
+    # would be a no-op -- a real bug.
     job.status = JobStatus.QUEUED
     job.run_at = datetime.now(timezone.utc)
+    job.attempt_count = 0
+    job.next_retry_at = None
     job.claimed_by_worker_id = None
     job.claimed_at = None
     job.lease_expires_at = None

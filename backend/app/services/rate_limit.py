@@ -60,7 +60,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not allowed:
             return JSONResponse(
                 status_code=429,
-                content={"detail": "Rate limit exceeded. Try again shortly."},
+                content={"error": {"code": 429, "message": "Rate limit exceeded. Try again shortly."}},
                 headers={"Retry-After": "1"},
             )
         response = await call_next(request)
