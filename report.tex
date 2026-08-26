@@ -91,34 +91,37 @@ Dashboard & queue health, worker status, job explorer, execution logs, retry/rep
 Scheduling definitions (\texttt{scheduled\_jobs}) are separate from job instances (\texttt{jobs});
 \texttt{dead\_letter\_queue} is its own table (narrow DLQ scan + frozen payload snapshot).
 \begin{center}
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
     font=\small,
-    ent/.style={rectangle, draw=rule, minimum width=2.2cm, minimum height=0.85cm, align=center, fill=panel},
+    ent/.style={rectangle, draw=rule, minimum width=1.9cm, minimum height=0.8cm, align=center, fill=panel},
     arr/.style={-, thick, black!65}
   ]
-  \node[ent] (org) {Organization};
-  \node[ent, right=1.15cm of org] (proj) {Project};
-  \node[ent, right=1.15cm of proj] (queue) {Queue};
-  \node[ent, right=1.15cm of queue] (job) {Job};
-  \node[ent, below=0.95cm of job] (exec) {JobExecution};
-  \node[ent, below left=0.95cm and 0.25cm of job] (log) {JobLog};
-  \node[ent, below right=0.95cm and 0.25cm of job] (dlq) {DeadLetter};
-  \node[ent, above right=0.95cm and 0.25cm of job] (sched) {ScheduledJob};
-  \node[ent, above left=0.95cm and 0.25cm of job] (batch) {Batch};
-  \node[ent, below=0.95cm of queue] (rp) {RetryPolicy};
-  \node[ent, below=0.95cm of proj] (worker) {Worker};
+  \node[ent] (org)   at (0,0)       {Organization};
+  \node[ent] (proj)  at (4.0,0)     {Project};
+  \node[ent] (queue) at (8.0,0)     {Queue};
+  \node[ent] (job)   at (12.0,0)    {Job};
+
+  \node[ent] (worker) at (3.8,-3.0) {Worker};
+  \node[ent] (batch)  at (5.9,-3.0) {Batch};
+  \node[ent] (retry)  at (8.0,-3.0) {RetryPolicy};
+  \node[ent] (sched)  at (10.1,-3.0){ScheduledJob};
+  \node[ent] (exec)   at (12.2,-3.0){JobExecution};
+
+  \node[ent] (log)   at (10.0,-6.0) {JobLog};
+  \node[ent] (dlq)   at (14.4,-6.0) {DeadLetter};
 
   \draw[arr] (org) -- (proj);
   \draw[arr] (proj) -- (queue);
   \draw[arr] (queue) -- (job);
-  \draw[arr] (job) -- (exec);
-  \draw[arr] (job) -- (log);
-  \draw[arr] (job) -- (dlq);
-  \draw[arr] (queue) -- (sched);
-  \draw[arr] (queue) -- (batch);
-  \draw[arr] (queue) -- (rp);
   \draw[arr] (proj) -- (worker);
-\end{tikzpicture}
+  \draw[arr] (queue) -- (batch);
+  \draw[arr] (queue) -- (retry);
+  \draw[arr] (queue) -- (sched);
+  \draw[arr] (job) -- (exec);
+  \draw[arr] (exec) -- (log);
+  \draw[arr] (exec) -- (dlq);
+\end{tikzpicture}}
 \end{center}
 Key indexes: \texttt{ix\_jobs\_claim\_scan(queue\_id, status, run\_at)} (the atomic claim scan),
 \texttt{ix\_scheduled\_jobs\_due(is\_active, next\_run\_at)}, \texttt{ix\_heartbeats\_worker\_time},
